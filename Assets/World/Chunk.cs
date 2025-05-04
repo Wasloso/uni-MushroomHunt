@@ -15,17 +15,22 @@ public class Chunk : MonoBehaviour
     [SerializeField] private GameObject[] bushPrefabs;
     [SerializeField] private GameObject[] flowerPrefabs;
     [SerializeField] private GameObject[] stumpPrefabs;
-    [SerializeField] private GameObject groundTilePrefab; // if using ground variations
-    [SerializeField] private float elevationScale = 2f; // how much elevation varies
+    [SerializeField] private GameObject groundTilePrefab; 
     private float[,] _heightMap;
+    [SerializeField] private LayerMask interactableLayerMask;
 
     
 
 
     public void Generate(Vector2Int coord, int seed)
     {
+        transform.position = new Vector3(
+            coord.x * ChunkSize, 
+            0, 
+            coord.y * ChunkSize);
         _random = new System.Random(coord.x * 73856093 ^ coord.y * 19349663 ^ seed);
         GenerateGround(coord, seed);
+        Physics.SyncTransforms(); 
         GenerateFlora(coord);
     }
 
@@ -35,14 +40,24 @@ public class Chunk : MonoBehaviour
 
         for (int i = 0; i < objectCount; i++)
         {
-            float localX = _random.Next(0, ChunkSize);
-            float localZ = _random.Next(0, ChunkSize);
-            float y = GetHeightAt(localX, localZ);
-            Vector3 pos = new Vector3(
-                coord.x * ChunkSize + localX,
-                y,
-                coord.y * ChunkSize + localZ
-            );
+            Vector3 pos;
+            float localX = (float)_random.NextDouble() * ChunkSize;
+            float localZ = (float)_random.NextDouble() * ChunkSize;
+            Vector3 rayOrigin = new Vector3(
+                transform.position.x + localX,  
+                heightScale+1f, 
+                transform.position.z + localZ);
+            int terrainMask = LayerMask.GetMask("Terrain");
+
+            if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit hitInfo, 200f, terrainMask))
+            {
+                 pos = hitInfo.point;
+            }
+            else
+            {
+                continue;
+            }
+        
 
             double roll = _random.NextDouble();
 
@@ -119,7 +134,6 @@ public class Chunk : MonoBehaviour
             triangles[i + 2] = temp;
         }
 
-        // Build mesh
         Mesh mesh = new Mesh();
         mesh.vertices = vertices;
         mesh.triangles = triangles;
@@ -128,39 +142,61 @@ public class Chunk : MonoBehaviour
 
         GameObject terrain = new GameObject("Terrain");
         terrain.transform.parent = transform;
-        terrain.transform.localPosition = new Vector3(coord.x * ChunkSize, 0, coord.y * ChunkSize);
+        terrain.transform.localPosition = Vector3.zero;
         terrain.AddComponent<MeshFilter>().mesh = mesh;
         terrain.AddComponent<MeshRenderer>().material = terrainMaterial;
         terrain.AddComponent<MeshCollider>().sharedMesh = mesh;
+        terrain.layer = LayerMask.NameToLayer("Terrain");
+        
     }
 
-    private void SpawnFrom(GameObject[] prefabs, Vector3 position, bool addSizing = false)
+    private GameObject SpawnFrom(GameObject[] prefabs, Vector3 position, bool addSizing = false)
     {
         int index = _random.Next(prefabs.Length);
         GameObject obj = Instantiate(prefabs[index], position, Quaternion.Euler(0, _random.Next(0, 360), 0), transform);
-        
-        if(!addSizing) return;
+        obj.transform.parent = transform;
+        if(!addSizing) return obj;
         float randomScaleFactor = Random.Range(1.1f, 2f);
         obj.transform.localScale = new Vector3(randomScaleFactor, randomScaleFactor, randomScaleFactor);
-
+        return obj;
     }
-
+    
     public float GetHeightAt(float localX, float localZ)
     {
-        int x = Mathf.Clamp(Mathf.RoundToInt(localX), 0, ChunkSize);
-        int z = Mathf.Clamp(Mathf.RoundToInt(localZ), 0, ChunkSize);
-        return _heightMap[x, z];
+        int x0 = Mathf.FloorToInt(localX);
+        int x1 = Mathf.CeilToInt(localX);
+        int z0 = Mathf.FloorToInt(localZ);
+        int z1 = Mathf.CeilToInt(localZ);
+    
+        x0 = Mathf.Clamp(x0, 0, ChunkSize);
+        x1 = Mathf.Clamp(x1, 0, ChunkSize);
+        z0 = Mathf.Clamp(z0, 0, ChunkSize);
+        z1 = Mathf.Clamp(z1, 0, ChunkSize);
+    
+        float h00 = _heightMap[x0, z0];
+        float h10 = _heightMap[x1, z0];
+        float h01 = _heightMap[x0, z1];
+        float h11 = _heightMap[x1, z1];
+    
+        
+        float xLerp = localX - x0;
+        float zLerp = localZ - z0;
+    
+        
+        float top = Mathf.Lerp(h00, h10, xLerp);
+        float bottom = Mathf.Lerp(h01, h11, xLerp);
+        return Mathf.Lerp(top, bottom, zLerp);
     }
 
 
 
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
+    
     void Start()
     {
         
     }
 
-    // Update is called once per frame
+    
     void Update()
     {
         

@@ -44,8 +44,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6bd00787c25752243af1d2d1a1bf5f24, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  heightScale: 1
-  noiseScale: 0.05
+  heightScale: 5
+  noiseScale: 0.03
   terrainMaterial: {fileID: 2100000, guid: 895151c233d0d9f40b9f4787a308a52c, type: 2}
   treePrefabs:
   - {fileID: 9069115365609291303, guid: 60f79905accf3b24fa0114b941f1aac0, type: 3}
